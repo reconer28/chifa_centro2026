@@ -1,0 +1,8 @@
+@extends('layouts.panel')
+@section('contenido')
+<section class="bienvenida"><div><span class="etiqueta">TU RESTAURANTE, AL DÍA</span><h2>Todo listo para una buena atención.</h2><p>Consulta los pedidos, organiza tu carta y acompaña al equipo.</p><a href="{{ route('admin.pedidos') }}" class="boton claro">Ver pedidos →</a></div><span class="simbolo" aria-hidden="true">中</span></section>
+<div class="estadisticas"><article><small>PRODUCTOS ACTIVOS</small><strong>{{ $productos }}</strong><span>Tu carta disponible</span></article><article><small>MESAS OCUPADAS</small><strong>{{ $ocupadas }}</strong><span>Atenciones abiertas</span></article><article><small>PEDIDOS EN CURSO</small><strong>{{ $pendientes }}</strong><span>Enviados, en preparación y listos</span></article><article><small>POR COBRAR</small><strong>S/ {{ number_format((float)$cobrar,2) }}</strong><span>Pedidos entregados pendientes</span></article></div>
+<section class="tarjeta"><div class="titulo-fila"><h2>Últimos pedidos</h2><a href="{{ route('admin.pedidos') }}">Ver todos →</a></div>
+@forelse($recientes as $pedido)<a class="fila-resumen" href="{{ route('admin.detalle',$pedido) }}"><span class="numero-mesa">{{ $pedido->atencion->mesa->numero }}</span><div><strong>Pedido #{{ $pedido->id }}</strong><small>{{ $pedido->mozoUsuario->nombre }} · {{ $pedido->created_at->timezone('America/Lima')->format('H:i') }}</small></div><span class="estado {{ $pedido->estado->value }}">{{ $pedido->estado->etiqueta() }}</span><strong>S/ {{ number_format($pedido->total_centimos/100,2) }}</strong></a>
+@empty<div class="vacio"><span>◌</span><h3>La próxima atención empieza aquí</h3><p>Los pedidos enviados desde la app aparecerán en este espacio y en cocina.</p></div>@endforelse</section>
+@endsection
