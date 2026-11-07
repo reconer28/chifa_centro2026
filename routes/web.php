@@ -25,6 +25,7 @@ Route::middleware('auth')->group(function (): void {
     });
     Route::prefix('cocina')->name('cocina.')->middleware('rol:Cocina,Administrador')->group(function (): void {
         Route::get('/', [CocinaController::class, 'index'])->name('index');
+        Route::post('/pedidos/{pedido}/visto', [CocinaController::class, 'reconocer'])->whereNumber('pedido')->name('reconocer');
         Route::patch('/pedidos/{pedido}', [CocinaController::class, 'cambiar'])->whereNumber('pedido')->name('cambiar');
     });
 });

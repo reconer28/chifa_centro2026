@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\EstadoPedido;
 use App\Enums\RolUsuario;
+use App\Events\PedidosActualizados;
 use App\Models\Atencion;
 use App\Models\Mesa;
 use App\Models\Pedido;
@@ -73,7 +74,7 @@ class GestionPedidos
             }
             abort_if($total > 9999999999, 422, 'El total supera el importe permitido.');
             $atencion ??= Atencion::query()->create(['mesa_id' => $mesa->id, 'mozo_id' => $usuario->id, 'fecha_apertura' => now()]);
-            $nuevo = Pedido::query()->create(['atencion_id' => $atencion->id, 'mozo_id' => $usuario->id, 'clave_idempotencia' => $clave, 'solicitud_hash' => $huella, 'estado' => EstadoPedido::Enviado, 'total_centimos' => $total]);
+            $nuevo = Pedido::query()->create(['atencion_id' => $atencion->id, 'mozo_id' => $usuario->id, 'clave_idempotencia' => $clave, 'solicitud_hash' => $huella, 'estado' => EstadoPedido::Enviado, 'total_centimos' => $total, 'version' => 1, 'version_vista_cocina' => 0]);
             foreach ($cuerpo['items'] as $linea) {
                 $producto = $productos[$linea['product_id']];
                 $descontar = $producto->stock !== null;
@@ -83,13 +84,15 @@ class GestionPedidos
                 }
             }
 
+            PedidosActualizados::dispatch('creado', $nuevo->id, $nuevo->atencion_id, $nuevo->version);
+
             return $nuevo;
         }, 3);
 
         return $pedido->load(['atencion.mesa', 'detalles']);
     }
 
-    private function bloquearPedido(Usuario $usuario, int $id): Pedido
+    public function bloquearPedido(Usuario $usuario, int $id): Pedido
     {
         $this->bloquearMozo($usuario);
         $referencia = Pedido::query()->with('atencion')->findOrFail($id);
@@ -108,6 +111,7 @@ class GestionPedidos
             }
             abort_if($pedido->atencion->fecha_cierre || $pedido->estado === EstadoPedido::Anulado, 409, 'Este pedido ya no puede marcarse como entregado.');
             $pedido->update(['estado' => EstadoPedido::Entregado]);
+            PedidosActualizados::dispatch('entregado', $pedido->id, $pedido->atencion_id, $pedido->version);
         }, 3);
     }
 
@@ -131,6 +135,7 @@ class GestionPedidos
             }
             $pedido->update(['estado' => EstadoPedido::Anulado, 'motivo_anulacion' => $motivo, 'administrador_anulacion_id' => $administrador->id, 'fecha_anulacion' => now()]);
             $this->autorizacion->registrar($usuario, $administrador, 'anular_pedido', (string) $id);
+            PedidosActualizados::dispatch('anulado', $pedido->id, $pedido->atencion_id, $pedido->version);
         }, 3);
     }
 
@@ -153,19 +158,22 @@ class GestionPedidos
             abort_unless($actuales->modelKeys() === $solicitados, 409, 'Los pedidos cambiaron. Actualiza la mesa antes de cerrar.');
             abort_if($actuales->contains(fn (Pedido $pedido): bool => ! in_array($pedido->estado, [EstadoPedido::Entregado, EstadoPedido::Anulado], true)), 409, 'Primero entrega todos los pedidos pendientes.');
             $atencion->update(['fecha_cierre' => now()]);
+            PedidosActualizados::dispatch('atencion_cerrada', null, $atencion->id);
         }, 3);
     }
 
-    public function avanzarCocina(int $id, EstadoPedido $estado): void
+    public function avanzarCocina(int $id, EstadoPedido $estado, int $versionEsperada): void
     {
-        DB::transaction(function () use ($id, $estado): void {
+        DB::transaction(function () use ($id, $estado, $versionEsperada): void {
             $pedido = Pedido::query()->with('atencion')->lockForUpdate()->findOrFail($id);
+            abort_if($versionEsperada !== $pedido->version, 409, 'El detalle del pedido cambió. Revisa los cambios antes de continuar.');
             if ($pedido->estado === $estado) {
                 return;
             }
             $anterior = $estado === EstadoPedido::EnPreparacion ? EstadoPedido::Enviado : EstadoPedido::EnPreparacion;
             abort_unless(! $pedido->atencion->fecha_cierre && $pedido->estado === $anterior, 409, 'El pedido cambió de estado. Actualiza el tablero.');
-            $pedido->update(['estado' => $estado]);
+            $pedido->update(['estado' => $estado, 'version_vista_cocina' => $pedido->version]);
+            PedidosActualizados::dispatch('estado_actualizado', $pedido->id, $pedido->atencion_id, $pedido->version);
         }, 3);
     }
 
@@ -176,8 +184,22 @@ class GestionPedidos
             if ($pedido->estado_cobro === 'Pagado') {
                 return;
             }
-            abort_unless($pedido->estado === EstadoPedido::Entregado,409,'Solo puedes cobrar pedidos entregados.');
+            abort_unless($pedido->estado === EstadoPedido::Entregado, 409, 'Solo puedes cobrar pedidos entregados.');
             $pedido->update(['estado_cobro' => 'Pagado', 'fecha_cobro' => now(), 'cobrado_por' => $usuario->id]);
+            PedidosActualizados::dispatch('cobrado', $pedido->id, $pedido->atencion_id, $pedido->version);
+        }, 3);
+    }
+
+    public function reconocerCambio(int $id, int $version): void
+    {
+        DB::transaction(function () use ($id, $version): void {
+            $pedido = Pedido::query()->lockForUpdate()->findOrFail($id);
+            abort_unless($pedido->version === $version, 409, 'Hay cambios nuevos. Actualiza antes de confirmar.');
+            if ($pedido->version_vista_cocina >= $version) {
+                return;
+            }
+            $pedido->update(['version_vista_cocina' => $version]);
+            PedidosActualizados::dispatch('visto', $pedido->id, $pedido->atencion_id, $pedido->version);
         }, 3);
     }
 }

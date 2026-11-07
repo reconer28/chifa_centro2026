@@ -20,13 +20,13 @@ class CocinaCobrosReportesTest extends TestCase
         DetallePedido::factory()->create(['pedido_id' => $pedido->id, 'observaciones' => 'Sin cebolla de prueba']);
         $this->actingAs($cocina, 'web')->get('/cocina')->assertOk()->assertSee('Sin cebolla de prueba');
         $this->get('/cocina', ['X-Tablero' => '1'])->assertOk()->assertHeader('Cache-Control', 'no-store, private');
-        $this->patchJson(route('cocina.cambiar', $pedido), ['estado' => 'ready'])->assertConflict();
-        $this->patch(route('cocina.cambiar', $pedido), ['estado' => 'preparing'])->assertRedirect();
+        $this->patchJson(route('cocina.cambiar', $pedido), ['estado' => 'ready', 'expected_version' => 1])->assertConflict();
+        $this->patch(route('cocina.cambiar', $pedido), ['estado' => 'preparing', 'expected_version' => 1])->assertRedirect();
         $this->assertSame(EstadoPedido::EnPreparacion, $pedido->fresh()->estado);
-        $this->patch(route('cocina.cambiar', $pedido), ['estado' => 'preparing'])->assertRedirect();
-        $this->patch(route('cocina.cambiar', $pedido), ['estado' => 'ready'])->assertRedirect();
+        $this->patch(route('cocina.cambiar', $pedido), ['estado' => 'preparing', 'expected_version' => 1])->assertRedirect();
+        $this->patch(route('cocina.cambiar', $pedido), ['estado' => 'ready', 'expected_version' => 1])->assertRedirect();
         $this->assertSame(EstadoPedido::Listo, $pedido->fresh()->estado);
-        $this->patchJson(route('cocina.cambiar', $pedido), ['estado' => 'preparing'])->assertConflict();
+        $this->patchJson(route('cocina.cambiar', $pedido), ['estado' => 'preparing', 'expected_version' => 1])->assertConflict();
     }
 
     public function test_no_se_puede_anular_un_pedido_en_preparacion_y_cobrar_es_idempotente(): void
@@ -79,8 +79,8 @@ class CocinaCobrosReportesTest extends TestCase
         $datos = ['table_id' => (string) $mesa->id, 'items' => [['product_id' => (string) $producto->id, 'quantity' => 2, 'notes' => 'Sin sal de prueba']]];
         $id = $this->postJson('/api/v1/orders', $datos, ['Idempotency-Key' => 'flujo_completo_prueba'])->assertSuccessful()->json('data.id');
         $this->actingAs($cocinero, 'web')->get('/cocina')->assertOk()->assertSee('Sin sal de prueba');
-        $this->patch('/cocina/pedidos/'.$id, ['estado' => 'preparing'])->assertRedirect();
-        $this->patch('/cocina/pedidos/'.$id, ['estado' => 'ready'])->assertRedirect();
+        $this->patch('/cocina/pedidos/'.$id, ['estado' => 'preparing', 'expected_version' => 1])->assertRedirect();
+        $this->patch('/cocina/pedidos/'.$id, ['estado' => 'ready', 'expected_version' => 1])->assertRedirect();
         $this->app['auth']->forgetGuards();
         $this->withToken($token)->postJson('/api/v1/orders/'.$id.'/deliver')->assertNoContent();
         $this->actingAs($administrador, 'web')->post('/administracion/pedidos/'.$id.'/cobrar')->assertRedirect();
@@ -99,7 +99,7 @@ class CocinaCobrosReportesTest extends TestCase
         $admin = Usuario::factory()->create(['rol' => RolUsuario::Administrador]);
         $pedido = Pedido::factory()->create(['estado' => EstadoPedido::Entregado, 'created_at' => '2026-11-07 04:30:00']);
         DetallePedido::factory()->create(['pedido_id' => $pedido->id, 'precio_centimos' => 1001, 'cantidad' => 1]);
-        $this->actingAs($admin, 'web')->get(route('admin.reportes', ['desde' => '2026-11-06', 'hasta' => '2026-11-06', 'mozo_id' => $pedido->mozo_id]))->assertOk()->assertViewHas('total',1001);
-        $this->get(route('admin.reportes',['desde' => '2026-11-07', 'hasta' => '2026-11-07', 'mozo_id' => $pedido->mozo_id]))->assertOk()->assertViewHas('total',0);
+        $this->actingAs($admin, 'web')->get(route('admin.reportes', ['desde' => '2026-11-06', 'hasta' => '2026-11-06', 'mozo_id' => $pedido->mozo_id]))->assertOk()->assertViewHas('total', 1001);
+        $this->get(route('admin.reportes', ['desde' => '2026-11-07', 'hasta' => '2026-11-07', 'mozo_id' => $pedido->mozo_id]))->assertOk()->assertViewHas('total', 0);
     }
 }

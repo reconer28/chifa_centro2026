@@ -14,6 +14,7 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
         Route::get('/orders', [ConsultaController::class, 'pedidos'])->name('pedidos');
         Route::put('/me/tables', [PedidoController::class, 'asignar'])->name('asignar');
         Route::post('/orders', [PedidoController::class, 'enviar'])->name('enviar');
+        Route::put('/orders/{pedido}', [PedidoController::class, 'editar'])->whereNumber('pedido')->name('editar');
         Route::post('/orders/{pedido}/deliver', [PedidoController::class, 'entregar'])->whereNumber('pedido')->name('entregar');
         Route::post('/orders/{pedido}/cancel', [PedidoController::class, 'anular'])->whereNumber('pedido')->name('anular');
         Route::post('/tables/{mesa}/close', [PedidoController::class, 'cerrar'])->whereNumber('mesa')->name('cerrar');

@@ -1,12 +1,10 @@
-document.querySelectorAll("[data-confirmar]").forEach((formulario) =>
-    formulario.addEventListener("submit", (evento) => {
-        if (!window.confirm(formulario.dataset.confirmar))
-            evento.preventDefault();
-    }),
-);
-document
-    .querySelectorAll("[data-imprimir]")
-    .forEach((boton) => boton.addEventListener("click", () => window.print()));
+document.addEventListener('submit', (evento) => {
+    const formulario = evento.target.closest('[data-confirmar]');
+    if (formulario && !window.confirm(formulario.dataset.confirmar)) evento.preventDefault();
+});
+document.addEventListener('click', (evento) => {
+    if (evento.target.closest('[data-imprimir]')) window.print();
+});
 const casilla = document.querySelector("[data-cuenta]");
 const campos = document.querySelector("[data-campos-cuenta]");
 function actualizarCampos() {
@@ -16,41 +14,6 @@ function actualizarCampos() {
 }
 casilla?.addEventListener("change", actualizarCampos);
 actualizarCampos();
-const tablero = document.querySelector("[data-tablero]");
-let enviando = false;
-document.addEventListener("submit", () => {
-    enviando = true;
-});
-async function actualizarTablero() {
-    if (!tablero) return;
-    if (
-        !enviando &&
-        document.visibilityState === "visible" &&
-        !tablero.contains(document.activeElement)
-    ) {
-        try {
-            const respuesta = await fetch(tablero.dataset.url, {
-                headers: { "X-Tablero": "1", Accept: "text/html" },
-                credentials: "same-origin",
-                cache: "no-store",
-            });
-            if (respuesta.redirected) {
-                window.location.assign(respuesta.url);
-                return;
-            }
-            if (!respuesta.ok) throw new Error("No se pudo actualizar");
-            tablero.innerHTML = await respuesta.text();
-            document.getElementById("estado-tablero").textContent =
-                "● Actualizado " + new Date().toLocaleTimeString("es-PE");
-        } catch (error) {
-            document.getElementById("estado-tablero").textContent =
-                "Sin conexión. Reintentando…";
-        }
-    }
-    window.setTimeout(actualizarTablero, 5000);
-}
-if (tablero) window.setTimeout(actualizarTablero, 5000);
-
 const botonMenu = document.querySelector("[data-alternar-menu]");
 if (botonMenu) {
     const menuLateral = document.getElementById("menu-lateral");

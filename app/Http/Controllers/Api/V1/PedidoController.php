@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\AnularPedidoRequest;
 use App\Http\Requests\AsignarMesasRequest;
 use App\Http\Requests\CerrarMesaRequest;
+use App\Http\Requests\EditarPedidoRequest;
 use App\Http\Requests\EnviarPedidoRequest;
 use App\Http\Resources\PedidoResource;
+use App\Services\EdicionPedidos;
 use App\Services\GestionPedidos;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -51,5 +53,12 @@ class PedidoController extends Controller
         $this->gestion->cerrar($solicitud->user(), $mesa, $solicitud->validated('order_ids'));
 
         return response()->noContent();
+    }
+
+    public function editar(EditarPedidoRequest $solicitud, int $pedido, EdicionPedidos $edicion): PedidoResource
+    {
+        $datos = $solicitud->validated();
+
+        return new PedidoResource($edicion->editar($solicitud->user(), $pedido, $datos, $datos['clave_idempotencia']));
     }
 }

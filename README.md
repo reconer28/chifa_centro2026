@@ -18,10 +18,10 @@ Abrir http://127.0.0.1:8000. También puede utilizarse el dominio configurado po
 - Administración: resumen, categorías, productos con imágenes, precios, stock, disponibilidad, empleados, usuarios por rol y mesas.
 - Empleados: opción de crear su usuario en la misma operación. Cambiar una contraseña revoca tokens del celular.
 - Los registros se desactivan y pueden reactivarse. No se borra el historial de pedidos.
-- Cocina: pendientes, preparación, listos, entregados y anulados. Consulta novedades cada cinco segundos mientras la pestaña está visible.
+- Cocina: pendientes, preparación, listos, entregados y anulados. Recibe novedades mediante Reverb y Echo, sin consultas programadas cada cinco segundos.
 - Pedidos y cobros: detalle con observaciones, precios históricos, registro de pago e impresión del resumen.
 - Reportes: ventas entregadas por fecha de Lima, mozo y producto; platos vendidos y cobros de esas ventas. El reporte no cuenta pedidos anulados ni platos todavía en preparación.
-- App: asignación con clave de un administrador activo, creación de pedidos y adicionales, entrega, anulación autorizada y cierre de atención.
+- App: asignación autorizada, pedidos, edición inicial, adicionales, entrega, anulación y cierre de atención.
 
 La asignación usa como turno el día en Lima. Una mesa con atención abierta conserva su mozo aunque cambie el día. Las mesas libres de un turno anterior pueden reasignarse con autorización. No se transfieren mesas ocupadas.
 
@@ -38,6 +38,7 @@ Base de prueba en la PC: http://127.0.0.1:8000/api/v1.
 | GET | /orders | Pedidos del mozo autenticado |
 | PUT | /me/tables | table_ids, admin_password |
 | POST | /orders | table_id, items con product_id, quantity, notes |
+| PUT | /orders/{id} | expected_version, items e Idempotency-Key |
 | POST | /orders/{id}/deliver | Marcar entregado |
 | POST | /orders/{id}/cancel | reason, admin_password |
 | POST | /tables/{id}/close | order_ids |
@@ -69,3 +70,65 @@ flutter run --dart-define=USE_MOCK=false --dart-define=API_BASE_URL=https://tu-d
 Por indicación del proyecto, las contraseñas continúan temporalmente sin hash. No se muestran en los formularios ni en la API. Antes del uso real hay que incorporar hash y migrar las claves existentes. No se han agregado facturación electrónica, pasarela de pagos ni inventario por ingredientes.
 
 La carta, usuarios y mesas se administran desde el panel. No es necesario volver a ejecutar el SQL original que elimina la base.
+
+## Tiempo real y reglas de pedidos
+
+Cocina y las vistas de pedidos de administración reciben eventos privados mediante Laravel Reverb y Laravel Echo. Los eventos se publican después de confirmar la transacción. Al recuperar la conexión, las pantallas vuelven a consultar el estado actual para recuperar cambios pendientes. El contador de demora se calcula en el navegador y no consulta la base cada segundo.
+
+- Edición: durante los primeros 5 minutos de cada envío, en estado enviado o en preparación, antes de estar listo, entregado, anulado o cerrado. Una edición no reinicia su tiempo de espera.
+- Adicionales: POST /orders con una nueva Idempotency-Key y solo los productos nuevos. Se crea un envío dentro de la misma atención abierta. Cocina muestra todos sus envíos juntos; los entregados quedan atenuados y los nuevos, destacados.
+- Demora: borde y etiqueta amarillos desde 12 minutos, rojos desde 15 minutos, hasta entregar el envío. El contenido de los platos conserva su fondo y legibilidad.
+- Sonido: pulsar «Activar sonido» en cada pantalla. Los avisos de pedidos nuevos, cambios y demoras tienen sonidos; se pueden silenciar. El navegador necesita esa interacción para habilitar audio.
+- Cambios: se guarda el detalle anterior y nuevo. Cocina puede marcar la versión como vista. No puede avanzar con un formulario que corresponda a una versión anterior.
+- La versión cambia cuando cambia el detalle, no al pasar entre estados de preparación.
+
+Para arrancar desde una instalación nueva: instalar Composer y NPM, copiar/configurar .env, ejecutar php artisan key:generate si falta APP_KEY y php artisan reverb:install para generar las credenciales locales. No copiar claves privadas a código fuente.
+
+Compilar el cliente después de instalar sus dependencias:
+
+~~~powershell
+npm ci
+npm run build
+~~~
+
+Además del servidor web, mantener estos dos procesos activos en terminales independientes:
+
+~~~powershell
+php artisan reverb:start --host=127.0.0.1 --port=8080
+php artisan queue:work --queue=avisos --sleep=1 --tries=5 --backoff=2 --timeout=30
+~~~
+
+La cola avisos se dedica a los eventos de pedidos. El canal restaurante.pedidos permite únicamente usuarios activos de Cocina o Administrador y utiliza sus sesiones web. Los mozos siguen utilizando la API REST con token.
+
+En el entorno local, REVERB_HOST/PORT/SCHEME señalan el servidor interno. Para una instalación HTTPS, configurar también REVERB_PUBLIC_HOST, REVERB_PUBLIC_PORT y REVERB_PUBLIC_SCHEME para la dirección WSS visible desde el navegador, un certificado válido y el proxy correspondiente. REVERB_ALLOWED_ORIGINS permite los dominios de la web. No se configuró un dominio público ni un despliegue de producción.
+
+### Editar desde la API
+
+PUT /api/v1/orders/{id}, con Authorization: Bearer TOKEN e Idempotency-Key nueva para esa edición:
+
+~~~json
+{
+  "expected_version": 1,
+  "items": [
+    {"product_id": "1", "quantity": 3, "notes": "Sin cebolla"}
+  ]
+}
+~~~
+
+items contiene el detalle completo que debe quedar. Se conservan los precios de los productos ya incluidos; los nuevos usan el precio del servidor. Laravel recalcula el stock y el total en una transacción. Las respuestas agregan attention_id, version, editable_until, can_edit, modified_at y kitchen_seen_version. Los campos anteriores permanecen compatibles.
+
+La misma clave y contenido reintentan la misma edición incluso después del límite de cinco minutos. Otra carga con la misma clave devuelve 409; una versión antigua también devuelve 409 y exige actualizar. Un rechazo por plazo o estado devuelve 422. Un intento sin cambios no incrementa la versión ni produce una alerta nueva.
+
+En cocina, POST /cocina/pedidos/{id}/visto recibe version. PATCH /cocina/pedidos/{id} recibe estado y expected_version. Estas operaciones son de la web y requieren el rol autorizado, no el token de un mozo.
+
+### Estado para vincular Flutter
+
+El backend conserva las APIs anteriores para acceso, mesas, carta, adicionales, entrega, anulación y cierre. Está preparado para comenzar la integración. La app actual todavía necesita una pantalla de edición, leer los nuevos campos y persistir id del pedido, versión esperada, cuerpo y clave de cada edición antes de enviarla. No se cambió su código Dart en esta etapa.
+
+Después de adaptar Flutter, verificar el flujo en celulares Android reales simultáneos, con una URL HTTPS accesible desde ellos. Las pruebas automáticas y la comprobación local de Reverb no sustituyen esa prueba con dispositivos.
+
+Pruebas de los temporizadores:
+
+~~~powershell
+node --test tests/js/alertas_pedidos.test.js
+~~~

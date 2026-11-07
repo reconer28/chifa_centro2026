@@ -1119,3 +1119,148 @@ footer {
         display: none !important;
     }
 }
+
+.barra-tiempo-real {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 0 0 20px;
+    padding: 10px 14px;
+    border: 1px solid #e4ddd6;
+    background: #fff;
+    border-radius: 10px;
+    font-size: 12px;
+}
+.estado-conexion {
+    color: #997436;
+}
+.estado-conexion.conectado {
+    color: #34735c;
+}
+.aviso-pedido {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    background: #e9f1fa;
+    border: 1px solid #b8cde3;
+    color: #345a7b;
+}
+.aviso-pedido.aviso-urgente {
+    background: #fff5f3;
+    border-color: #dcb1aa;
+    color: #913b36;
+}
+.tiempo-pedido {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #6b655e;
+    padding: 4px 8px;
+    border: 1px solid #e5dfd8;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+.tiempo-pedido small {
+    width: 100%;
+    font-size: 10px;
+    color: inherit;
+}
+.tiempo-pedido.demora-amarilla {
+    border-color: #b88b25;
+    color: #805f17;
+    background: #fffbef;
+}
+.tiempo-pedido.demora-roja {
+    border-color: #b74c43;
+    color: #923c37;
+    background: #fff7f5;
+}
+.envio-cocina {
+    margin-top: 15px;
+    padding: 14px;
+    border: 1px solid #e5ded7;
+    border-radius: 8px;
+    background: #fff;
+}
+.envio-cocina > .titulo-fila {
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.envio-cocina > .titulo-fila > strong {
+    font-size: 13px;
+}
+.envio-cocina.demora-amarilla {
+    border-left: 4px solid #bf932d;
+}
+.envio-cocina.demora-roja {
+    border-left: 4px solid #b95349;
+}
+.envio-nuevo {
+    border-left: 4px solid #5b86ad;
+}
+.envio-entregado {
+    opacity: 0.55;
+    background: #f7f6f4;
+}
+.envio-anulado {
+    opacity: 0.55;
+}
+.envio-cocina form + form {
+    margin-top: 10px;
+}
+.envio-cocina .platos-orden {
+    margin-top: 12px;
+}
+.envio-cocina .platos-orden li {
+    overflow-wrap: anywhere;
+}
+.etiqueta-novedad {
+    display: inline-block;
+    font-size: 10px;
+    background: #edf4fc;
+    color: #356183;
+    padding: 4px 8px;
+    border-radius: 5px;
+    margin: 8px 0 0;
+}
+.tiempo-envio {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+    margin: 10px 0;
+}
+.detalle-cambios {
+    font-size: 12px;
+    border: 1px solid #c9d8e8;
+    background: #f4f8fd;
+    padding: 9px;
+    margin: 10px 0;
+    border-radius: 6px;
+}
+.detalle-cambios summary {
+    font-weight: 600;
+    cursor: pointer;
+    color: #365f84;
+}
+.detalle-cambios p {
+    margin: 8px 0 0;
+    overflow-wrap: anywhere;
+}
+tr.demora-amarilla > td:first-child,
+.fila-resumen.demora-amarilla {
+    box-shadow: inset 3px 0 #bf932d;
+}
+tr.demora-roja > td:first-child,
+.fila-resumen.demora-roja {
+    box-shadow: inset 3px 0 #b95349;
+}
+@media print {
+    .barra-tiempo-real,
+    .aviso-pedido {
+        display: none !important;
+    }
+}
